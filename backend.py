@@ -10,7 +10,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # AI and extraction config
-API_KEY = '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'
+API_KEY = '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'
 API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 CSV_COLUMNS = [
     'Name',
@@ -104,7 +104,7 @@ Text block:
         'Content-Type': 'application/json',
     }
     data = {
-        "model": "openai/gpt-3.5-turbo",
+        "model": "openai/gpt-4-turbo",
         "messages": [
             {"role": "user", "content": prompt}
         ]
