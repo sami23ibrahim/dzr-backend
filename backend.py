@@ -8,9 +8,11 @@ import pandas as pd
 import re
 import firebase_admin
 from firebase_admin import credentials, firestore
+from dotenv import load_dotenv
 
 # AI and extraction config
-API_KEY = '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'
+load_dotenv()
+API_KEY = os.getenv('API_KEY')
 API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 CSV_COLUMNS = [
     'Name',
@@ -104,7 +106,7 @@ Text block:
         'Content-Type': 'application/json',
     }
     data = {
-        "model": "openai/gpt-4-turbo",
+        "model": "openai/gpt-3.5-turbo",
         "messages": [
             {"role": "user", "content": prompt}
         ]

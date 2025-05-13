@@ -4,3 +4,4 @@ pandas
 pdfplumber
 requests 
 firebase-admin
+python-dotenv
