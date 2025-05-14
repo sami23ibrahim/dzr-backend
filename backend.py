@@ -22,7 +22,10 @@ CSV_COLUMNS = [
     'Betrag',
     'Billing Date',
     'notes',
-    'starred'
+    'starred',
+    'assigned_to',
+    'handled_by',
+    'archive_result'
 ]
 
 app = Flask(__name__)
@@ -173,6 +176,18 @@ def upload_invoices():
             row['Billing Date'] = billing_date
             row['notes'] = ""
             row['starred'] = False
+            row['assigned_to'] = ""
+            # Ensure Betrag is always negative
+            betrag = row.get("Betrag", "")
+            betrag_clean = betrag.replace('.', '').replace(',', '.').replace(' ', '')
+            try:
+                value = float(betrag_clean)
+                if value > 0:
+                    value = -value
+                # Format back to German style (e.g., -49,33)
+                row["Betrag"] = f"{value:,.2f}".replace('.', 'X').replace(',', '.').replace('X', ',')
+            except Exception:
+                pass  # If conversion fails, leave as is
             nr = normalize_nr(row.get("Ihre Rechnungs-Nr."))
             if not nr or nr in existing_nrs:
                 continue  # Skip duplicate or empty
@@ -201,7 +216,15 @@ def get_rows():
 
 @app.route('/api/row/<row_id>/archive', methods=['POST'])
 def archive_row(row_id):
-    db.collection('invoices').document(row_id).update({'archived': True})
+    data = request.json or {}
+    archive_result = data.get('archive_result', '')
+    doc_ref = db.collection('invoices').document(row_id)
+    doc = doc_ref.get()
+    handled_by = ""
+    if doc.exists:
+        doc_data = doc.to_dict()
+        handled_by = doc_data.get('assigned_to', '')
+    doc_ref.update({'archived': True, 'handled_by': handled_by, 'archive_result': archive_result})
     return jsonify({'success': True})
 
 @app.route('/api/row/<row_id>', methods=['DELETE'])
@@ -224,6 +247,12 @@ def update_notes(row_id):
 def update_starred(row_id):
     starred = request.json.get('starred', False)
     db.collection('invoices').document(row_id).update({'starred': starred})
+    return jsonify({'success': True})
+
+@app.route('/api/row/<row_id>/assigned_to', methods=['POST'])
+def update_assigned_to(row_id):
+    assigned_to = request.json.get('assigned_to', '')
+    db.collection('invoices').document(row_id).update({'assigned_to': assigned_to})
     return jsonify({'success': True})
 
 if __name__ == '__main__':
