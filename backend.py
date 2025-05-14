@@ -9,6 +9,7 @@ import re
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
+import json
 
 # AI and extraction config
 load_dotenv()
@@ -32,7 +33,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Initialize Firebase Admin
-cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+service_account_info = json.loads(os.getenv('FIREBASE_SERVICE_ACCOUNT'))
+cred = credentials.Certificate(service_account_info)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
