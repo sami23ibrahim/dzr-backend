@@ -163,7 +163,7 @@ def upload_invoices():
         os.unlink(tmp.name)
         print(f"\n--- Debug: BLOCK SENT TO AI for {file.filename} ---\n{block}\n--- END BLOCK ---\n")
         if not block:
-            invalid_files.append(file.filename)
+            invalid_files.append({"filename": file.filename, "reason": "no_data"})
             continue
         parsed_list = parse_block_with_ai(block)
         print(f"\n--- Debug: AI RESPONSE for {file.filename} ---\n{parsed_list}\n--- END AI RESPONSE ---\n")
@@ -172,11 +172,11 @@ def upload_invoices():
             break
         if isinstance(parsed_list, dict) and parsed_list.get("error"):
             print(f"\n--- Debug: AI ERROR for {file.filename} ---\n{parsed_list['error']}\n")
-            invalid_files.append(file.filename)
+            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})  # Frontend: show 'The following files may contain corrupted data. Please handle them manually.'
             continue
         if not parsed_list or not isinstance(parsed_list, list) or len(parsed_list) == 0:
             print(f"\n--- Debug: AI returned empty or invalid list for {file.filename} ---\n")
-            invalid_files.append(file.filename)
+            invalid_files.append({"filename": file.filename, "reason": "no_data"})
             continue
         # DO NOT FORGET: If any entry is missing/empty, skip the whole file!
         required_fields = ["Name", "Rechnungsempfängers", "Rechnungs-Nr. DZR", "Ihre Rechnungs-Nr.", "Betrag"]
@@ -185,7 +185,7 @@ def upload_invoices():
             for entry in parsed_list
         ):
             print(f"AI returned incomplete entry for {file.filename}")
-            invalid_files.append(file.filename)
+            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})  # Frontend: show 'The following files may contain corrupted data. Please handle them manually.'
             continue  # Skip this file, do not add any rows
         for parsed in parsed_list:
             row = {col: parsed.get(col, '') for col in CSV_COLUMNS}
