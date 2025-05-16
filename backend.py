@@ -34,7 +34,8 @@ CORS(app)
 
 # Initialize Firebase Admin
 print("FIREBASE_SERVICE_ACCOUNT:", os.getenv('FIREBASE_SERVICE_ACCOUNT'))
-cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+#cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -61,46 +62,39 @@ def parse_block_with_ai(block):
 Extract all data rows (ignore any table headers or column names) from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
 For each row, extract:
 - Name (the first line of the row, which is the person's name)
-- Rechnungsempfängers (all lines after the name, before the invoice numbers, joined as one field; if there is no such line, leave this field blank)
+- Rechnungsempfängers (all lines after Betrag, last section of each entry before the next entry name, joined as one field; incluse all the text until the next entry name.)
 - Rechnungs-Nr. DZR
 - Ihre Rechnungs-Nr.
 - Betrag
 Return the result as a JSON array, where each element is an object with these keys: Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag. Do not include any header or column name rows in the output.
-
+Important:
+If, for any entry, one or more of the five required fields (Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag) is missing or empty, do not return any data. Instead, return only this JSON:
+{
+  "error": "This file could not be processed automatically. Please handle it manually."
+}
 Example input block:
-Ab- und Zusetzungen
-Name des Patienten/ Rechnungsempfängers        Rechnungs-Nr. DZR    Ihre Rechnungs-Nr.    Betrag
-Bradley Stephenson
-  Schriftwechsel - Sonstiges                  389853/03/2025       2293 (EA)             -300,16
-Oussama Sabri
-  Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis    806429/04/2025       2443 (GOZ)            -1.581,87
-Mahmoud Khaled
-  Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis    806437/04/2025       2422 (EA)             -115,00
+ Ab- und Zusetzungen
+ Name des Patienten/ Rechnungs-Nr. Ihre Rechnungs-Nr. Betrag \Rechnungsempfängers
+Lisa Anne Sibbing /297426/12/2023/130 (GOZ)/-123,64 / Telefonisch: Direktzahlung vom 19.02.2024 /n
+Emine Sarihan 506432/03/2024 459 (EA) -179,26\Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
 Summe Ab- und Zusetzungen
-
 Example output:
 [
   {{
-    "Name": "Bradley Stephenson",
-    "Rechnungsempfängers": "Schriftwechsel - Sonstiges",
-    "Rechnungs-Nr. DZR": "389853/03/2025",
-    "Ihre Rechnungs-Nr.": "2293 (EA)",
-    "Betrag": "-300,16"
+    "Name": "Lisa Anne Sibbing",
+    "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024 ",
+    "Rechnungs-Nr. DZR": "297426/12/2023",
+    "Ihre Rechnungs-Nr.": "130 (GOZ)",
+    "Betrag": "-123,64"
   }},
   {{
-    "Name": "Oussama Sabri",
+    "Name": "Emine Sarihan",
     "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
-    "Rechnungs-Nr. DZR": "806429/04/2025",
-    "Ihre Rechnungs-Nr.": "2443 (GOZ)",
-    "Betrag": "-1.581,87"
+    "Rechnungs-Nr. DZR": "506432/03/2024",
+    "Ihre Rechnungs-Nr.": "459 (EA)",
+    "Betrag": "-179,26"
   }},
-  {{
-    "Name": "Mahmoud Khaled",
-    "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
-    "Rechnungs-Nr. DZR": "806437/04/2025",
-    "Ihre Rechnungs-Nr.": "2422 (EA)",
-    "Betrag": "-115,00"
-  }}
+  
 ]
 
 Text block:
@@ -172,6 +166,9 @@ def upload_invoices():
         if parsed_list == '__AI_ERROR__':
             ai_error = True
             break
+        if isinstance(parsed_list, dict) and parsed_list.get("error"):
+            invalid_files.append(file.filename)
+            continue
         if not parsed_list or not isinstance(parsed_list, list) or len(parsed_list) == 0:
             invalid_files.append(file.filename)
             continue
