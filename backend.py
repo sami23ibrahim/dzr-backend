@@ -150,13 +150,15 @@ def upload_invoices():
     all_rows = []
     invalid_files = []
     ai_error = False
-    # Gather all existing normalized Ihre Rechnungs-Nr. from Firestore (active and archived)
-    existing_nrs = set()
+    # Gather all existing (Ihre Rechnungs-Nr., Betrag) pairs from Firestore (active and archived)
+    existing_nr_betrag = set()
     docs = db.collection('invoices').stream()
     for doc in docs:
-        doc_nr = normalize_nr(doc.to_dict().get("Ihre Rechnungs-Nr."))
+        doc_data = doc.to_dict()
+        doc_nr = normalize_nr(doc_data.get("Ihre Rechnungs-Nr."))
+        doc_betrag = doc_data.get("Betrag", "")
         if doc_nr:
-            existing_nrs.add(doc_nr)
+            existing_nr_betrag.add((doc_nr, doc_betrag))
     for file in files:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
             file.save(tmp.name)
@@ -191,13 +193,14 @@ def upload_invoices():
             except Exception:
                 pass  # If conversion fails, leave as is
             nr = normalize_nr(row.get("Ihre Rechnungs-Nr."))
-            if not nr or nr in existing_nrs:
+            betrag = row.get("Betrag", "")
+            if not nr or (nr, betrag) in existing_nr_betrag:
                 continue  # Skip duplicate or empty
             # Add to Firestore
             doc_ref = db.collection('invoices').add(row)
             row['id'] = doc_ref[1].id
             all_rows.append(row)
-            existing_nrs.add(nr)  # Prevent duplicates within this batch
+            existing_nr_betrag.add((nr, betrag))  # Prevent duplicates within this batch
     if ai_error:
         return jsonify({'ai_error': True}), 200
     return jsonify({'data': all_rows, 'invalid_files': invalid_files})
