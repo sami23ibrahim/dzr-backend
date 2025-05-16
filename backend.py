@@ -34,8 +34,8 @@ CORS(app)
 
 # Initialize Firebase Admin
 print("FIREBASE_SERVICE_ACCOUNT:", os.getenv('FIREBASE_SERVICE_ACCOUNT'))
-#cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
-cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+#cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
