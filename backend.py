@@ -120,8 +120,9 @@ Critical instructions to detect missing fields clearly:
 - "Rechnungs-Nr. DZR" is ALWAYS a number in the explicit format "XXXXXX/XX/XXXX".
 - "Betrag" is ALWAYS numeric (positive or negative) and at the very end of the main line.
 - "Ihre Rechnungs-Nr." should appear BETWEEN the "Rechnungs-Nr. DZR" and "Betrag". If there is NO clear separate field between "Rechnungs-Nr. DZR" and "Betrag", this explicitly means "Ihre Rechnungs-Nr." is missing.
-- If any field is missing or unclear, explicitly STOP and return ONLY this JSON:
-{{
+Important clarifications:
+- If a field is explicitly represented as empty parentheses "()", explicitly set the field as "" (empty string).
+- If a field is entirely missing or unclear (not explicitly represented), do NOT guess the field; instead, STOP extraction immediately and return only this JSON:{{
   "error": "This file could not be processed automatically. Please handle it manually."
 }}
 
