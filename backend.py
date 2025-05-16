@@ -61,40 +61,42 @@ def parse_block_with_ai(block):
     prompt = f"""
 Extract all data rows (ignore any table headers or column names) from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
 For each row, extract:
-- Name (the first line of the row, which is the person's name)
-- Rechnungsempfängers (all lines after Betrag, last section of each entry before the next entry name, joined as one field; incluse all the text until the next entry name.)
-- Rechnungs-Nr. DZR
-- Ihre Rechnungs-Nr.
-- Betrag
+- Name (the first part of the main entry line, before the invoice numbers)
+- Rechnungs-Nr. DZR (the invoice number, on the main entry line)
+- Ihre Rechnungs-Nr. (your invoice number, on the main entry line)
+- Betrag (the amount, on the main entry line)
+- Rechnungsempfängers (the line(s) that come after the Betrag for each entry, until the next entry starts; join all such lines as one field. If there is no such line, leave this field blank.)
+
 Return the result as a JSON array, where each element is an object with these keys: Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag. Do not include any header or column name rows in the output.
+
 Important:
 If, for any entry, one or more of the five required fields (Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag) is missing or empty, do not return any data. Instead, return only this JSON:
-{
+{{
   "error": "This file could not be processed automatically. Please handle it manually."
-}
+}}
+
 Example input block:
- Ab- und Zusetzungen
- Name des Patienten/ Rechnungs-Nr. Ihre Rechnungs-Nr. Betrag \Rechnungsempfängers
-Lisa Anne Sibbing /297426/12/2023/130 (GOZ)/-123,64 / Telefonisch: Direktzahlung vom 19.02.2024 /n
-Emine Sarihan 506432/03/2024 459 (EA) -179,26\Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
-Summe Ab- und Zusetzungen
+Lisa Anne Sibbing 297426/12/2023 130 (GOZ) -123,64
+Telefonisch: Direktzahlung vom 19.02.2024
+Emine Sarihan 506432/03/2024 459 (EA) -179,26
+Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
+
 Example output:
 [
-  {{
+  {
     "Name": "Lisa Anne Sibbing",
-    "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024 ",
+    "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024",
     "Rechnungs-Nr. DZR": "297426/12/2023",
     "Ihre Rechnungs-Nr.": "130 (GOZ)",
     "Betrag": "-123,64"
-  }},
-  {{
+  },
+  {
     "Name": "Emine Sarihan",
     "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
     "Rechnungs-Nr. DZR": "506432/03/2024",
     "Ihre Rechnungs-Nr.": "459 (EA)",
     "Betrag": "-179,26"
-  }},
-  
+  }
 ]
 
 Text block:
@@ -159,21 +161,26 @@ def upload_invoices():
             block = extract_relevant_block(tmp.name)
             billing_date = extract_billing_date(tmp.name)
         os.unlink(tmp.name)
+        print(f"\n--- Debug: BLOCK SENT TO AI for {file.filename} ---\n{block}\n--- END BLOCK ---\n")
         if not block:
             invalid_files.append(file.filename)
             continue
         parsed_list = parse_block_with_ai(block)
+        print(f"\n--- Debug: AI RESPONSE for {file.filename} ---\n{parsed_list}\n--- END AI RESPONSE ---\n")
         if parsed_list == '__AI_ERROR__':
             ai_error = True
             break
         if isinstance(parsed_list, dict) and parsed_list.get("error"):
+            print(f"\n--- Debug: AI ERROR for {file.filename} ---\n{parsed_list['error']}\n")
             invalid_files.append(file.filename)
             continue
         if not parsed_list or not isinstance(parsed_list, list) or len(parsed_list) == 0:
+            print(f"\n--- Debug: AI returned empty or invalid list for {file.filename} ---\n")
             invalid_files.append(file.filename)
             continue
         for parsed in parsed_list:
             row = {col: parsed.get(col, '') for col in CSV_COLUMNS}
+            print(f"\n--- Debug: ROW TO BE ADDED for {file.filename} ---\n{row}\n--- END ROW ---\n")
             row['Billing Date'] = billing_date
             row['notes'] = ""
             row['starred'] = False
