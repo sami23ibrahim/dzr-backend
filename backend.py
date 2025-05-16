@@ -83,20 +83,20 @@ Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
 
 Example output:
 [
-  {
+  {{
     "Name": "Lisa Anne Sibbing",
     "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024",
     "Rechnungs-Nr. DZR": "297426/12/2023",
     "Ihre Rechnungs-Nr.": "130 (GOZ)",
     "Betrag": "-123,64"
-  },
-  {
+  }},
+  {{
     "Name": "Emine Sarihan",
     "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
     "Rechnungs-Nr. DZR": "506432/03/2024",
     "Ihre Rechnungs-Nr.": "459 (EA)",
     "Betrag": "-179,26"
-  }
+  }},
 ]
 
 Text block:
