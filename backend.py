@@ -34,8 +34,8 @@ CORS(app)
 
 # Initialize Firebase Admin
 print("FIREBASE_SERVICE_ACCOUNT:", os.getenv('FIREBASE_SERVICE_ACCOUNT'))
-cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
-#cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+#cred = credentials.Certificate('/etc/secrets/d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
+cred = credentials.Certificate('d3z-pdf-firebase-adminsdk-fbsvc-613ac76010.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -58,50 +58,106 @@ def extract_relevant_block(pdf_path):
     return block.strip()
 
 def parse_block_with_ai(block):
+#     prompt = f"""
+# Extract all data rows (ignore any table headers or column names) from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
+# For each row, extract:
+# - Name (the first part of the main entry line, before the invoice numbers)
+# - Rechnungs-Nr. DZR (the invoice number, on the main entry line)
+# - Ihre Rechnungs-Nr. (your invoice number, on the main entry line)
+# - Betrag (the amount, on the main entry line)
+# - Rechnungsempfängers (the line(s) that come after the Betrag for each entry, until the next entry starts; join all such lines as one field. If there is no such line, leave this field blank.)
+
+# Return the result as a JSON array, where each element is an object with these keys: Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag. Do not include any header or column name rows in the output.
+
+# Important:
+# If, for any entry, one or more of the five required fields (Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag) is missing or empty, do not return any data. Instead, return only this JSON:
+# {{
+#   "error": "This file could not be processed automatically. Please handle it manually."
+# }}
+
+# Example input block:
+# Lisa Anne Sibbing 297426/12/2023 130 (GOZ) -123,64
+# Telefonisch: Direktzahlung vom 19.02.2024
+# Emine Sarihan 506432/03/2024 459 (EA) -179,26
+# Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
+
+# Example output:
+# [
+#   {{
+#     "Name": "Lisa Anne Sibbing",
+#     "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024",
+#     "Rechnungs-Nr. DZR": "297426/12/2023",
+#     "Ihre Rechnungs-Nr.": "130 (GOZ)",
+#     "Betrag": "-123,64"
+#   }},
+#   {{
+#     "Name": "Emine Sarihan",
+#     "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
+#     "Rechnungs-Nr. DZR": "506432/03/2024",
+#     "Ihre Rechnungs-Nr.": "459 (EA)",
+#     "Betrag": "-179,26"
+#   }},
+# ]
+
+# Text block:
+# {block}
+# """
+
+
+
     prompt = f"""
-Extract all data rows (ignore any table headers or column names) from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
-For each row, extract:
-- Name (the first part of the main entry line, before the invoice numbers)
-- Rechnungs-Nr. DZR (the invoice number, on the main entry line)
-- Ihre Rechnungs-Nr. (your invoice number, on the main entry line)
-- Betrag (the amount, on the main entry line)
-- Rechnungsempfängers (the line(s) that come after the Betrag for each entry, until the next entry starts; join all such lines as one field. If there is no such line, leave this field blank.)
+Extract all data rows from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
 
-Return the result as a JSON array, where each element is an object with these keys: Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag. Do not include any header or column name rows in the output.
+Each row must explicitly have these fields:
+1. Name: Text at the start of the line before the first invoice number.
+2. Rechnungs-Nr. DZR: Invoice number in the exact format 'XXXXXX/XX/XXXX'.
+3. Ihre Rechnungs-Nr.: Invoice identifier (e.g. '1029 (GOZ)'). 
+4. Betrag: Numeric amount at the end of the line (e.g. '-61,14').
+5. Rechnungsempfängers: Any lines following the main line until the next main entry.
 
-Important:
-If, for any entry, one or more of the five required fields (Name, Rechnungsempfängers, Rechnungs-Nr. DZR, Ihre Rechnungs-Nr., Betrag) is missing or empty, do not return any data. Instead, return only this JSON:
+Critical instructions to detect missing fields clearly:
+- A valid main line always has at least three clear elements in sequence after the Name: "Rechnungs-Nr. DZR", "Ihre Rechnungs-Nr.", "Betrag".
+- "Rechnungs-Nr. DZR" is ALWAYS a number in the explicit format "XXXXXX/XX/XXXX".
+- "Betrag" is ALWAYS numeric (positive or negative) and at the very end of the main line.
+- "Ihre Rechnungs-Nr." should appear BETWEEN the "Rechnungs-Nr. DZR" and "Betrag". If there is NO clear separate field between "Rechnungs-Nr. DZR" and "Betrag", this explicitly means "Ihre Rechnungs-Nr." is missing.
+- If any field is missing or unclear, explicitly STOP and return ONLY this JSON:
 {{
   "error": "This file could not be processed automatically. Please handle it manually."
 }}
 
-Example input block:
-Lisa Anne Sibbing 297426/12/2023 130 (GOZ) -123,64
-Telefonisch: Direktzahlung vom 19.02.2024
-Emine Sarihan 506432/03/2024 459 (EA) -179,26
-Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis
+Examples to illustrate this clearly:
 
-Example output:
+Example Input:
+Thomas Müller 341342/02/2024 -44,55
+Extra notes line here
+
+Correct Output (because "Ihre Rechnungs-Nr." is clearly missing):
+{{
+  "error": "This file could not be processed automatically. Please handle it manually."
+}}
+
+Another Example Input:
+Emine Sarihan 506432/03/2024 () -179,26
+Extra notes here
+
+Correct Output (because parentheses explicitly show "Ihre Rechnungs-Nr." is empty but clearly indicated):
 [
   {{
-    "Name": "Lisa Anne Sibbing",
-    "Rechnungsempfängers": "Telefonisch: Direktzahlung vom 19.02.2024",
-    "Rechnungs-Nr. DZR": "297426/12/2023",
-    "Ihre Rechnungs-Nr.": "130 (GOZ)",
-    "Betrag": "-123,64"
-  }},
-  {{
     "Name": "Emine Sarihan",
-    "Rechnungsempfängers": "Telefonat - Hakam El Daghma - Absetzung auf Wunsch der Praxis",
+    "Rechnungsempfängers": "Extra notes here",
     "Rechnungs-Nr. DZR": "506432/03/2024",
-    "Ihre Rechnungs-Nr.": "459 (EA)",
+    "Ihre Rechnungs-Nr.": "",
     "Betrag": "-179,26"
-  }},
+  }}
 ]
 
-Text block:
+Text block to extract:
 {block}
 """
+
+
+
+
     headers = {
         'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json',
