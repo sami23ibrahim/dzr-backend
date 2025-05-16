@@ -178,6 +178,15 @@ def upload_invoices():
             print(f"\n--- Debug: AI returned empty or invalid list for {file.filename} ---\n")
             invalid_files.append(file.filename)
             continue
+        # DO NOT FORGET: If any entry is missing/empty, skip the whole file!
+        required_fields = ["Name", "Rechnungsempfängers", "Rechnungs-Nr. DZR", "Ihre Rechnungs-Nr.", "Betrag"]
+        if not all(
+            isinstance(entry, dict) and all(entry.get(field, '').strip() for field in required_fields)
+            for entry in parsed_list
+        ):
+            print(f"AI returned incomplete entry for {file.filename}")
+            invalid_files.append(file.filename)
+            continue  # Skip this file, do not add any rows
         for parsed in parsed_list:
             row = {col: parsed.get(col, '') for col in CSV_COLUMNS}
             print(f"\n--- Debug: ROW TO BE ADDED for {file.filename} ---\n{row}\n--- END ROW ---\n")
