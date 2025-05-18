@@ -106,7 +106,7 @@ def parse_block_with_ai(block):
 
 
     prompt = f"""
-Extract all data rows from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
+# Extract all data rows (ignore any table headers or column names) from the following text block (between 'Ab- und Zusetzungen' and 'Summe Ab- und Zusetzungen').
 
 Each row must explicitly have these fields:
 1. Name: Text at the start of the line before the first invoice number.
@@ -227,9 +227,11 @@ def upload_invoices():
         if parsed_list == '__AI_ERROR__':
             ai_error = True
             break
-        if isinstance(parsed_list, dict) and parsed_list.get("error"):
-            print(f"\n--- Debug: AI ERROR for {file.filename} ---\n{parsed_list['error']}\n")
-            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})  # Frontend: show 'The following files may contain corrupted data. Please handle them manually.'
+        if (isinstance(parsed_list, dict) and parsed_list.get("error")) or (
+            isinstance(parsed_list, list) and any(isinstance(entry, dict) and entry.get("error") for entry in parsed_list)
+        ):
+            print(f"\n--- Debug: AI ERROR for {file.filename} ---\n")
+            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})
             continue
         if not parsed_list or not isinstance(parsed_list, list) or len(parsed_list) == 0:
             print(f"\n--- Debug: AI returned empty or invalid list for {file.filename} ---\n")
@@ -242,7 +244,7 @@ def upload_invoices():
             for entry in parsed_list
         ):
             print(f"AI returned incomplete entry for {file.filename}")
-            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})  # Frontend: show 'The following files may contain corrupted data. Please handle them manually.'
+            invalid_files.append({"filename": file.filename, "reason": "incomplete_entry"})
             continue  # Skip this file, do not add any rows
         for parsed in parsed_list:
             row = {col: parsed.get(col, '') for col in CSV_COLUMNS}
