@@ -332,5 +332,11 @@ def update_assigned_to(row_id):
     db.collection('invoices').document(row_id).update({'assigned_to': assigned_to})
     return jsonify({'success': True})
 
+@app.route('/api/row/<row_id>/archive_result', methods=['POST'])
+def update_archive_result(row_id):
+    archive_result = request.json.get('archive_result', '')
+    db.collection('invoices').document(row_id).update({'archive_result': archive_result})
+    return jsonify({'success': True})
+
 if __name__ == '__main__':
     app.run(debug=True) 
